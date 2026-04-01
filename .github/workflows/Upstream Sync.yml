@@ -19,31 +19,22 @@ jobs:
       - name: Checkout target repo
         uses: actions/checkout@v3
 
-      # Step 2: 运行同步操作
+      # Step 2: 运行安全同步操作（保留你的 Actions 脚本）
       - name: Sync upstream changes
         id: sync
         uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
         with:
-          # 上游仓库地址 (格式: owner/repo)
-          # 请将这里替换为你实际需要同步的上游仓库，例如你提到的 sowa.../lxmusic-
-          upstream_sync_repo: sowahsun/lxmusic-
+          # 核心修正：这里必须填真正的原作者仓库
+          upstream_sync_repo: guoyue2010/lxmusic-
           
-          # 上游仓库需要同步的分支
           upstream_sync_branch: main 
-          
-          # 你自己仓库接收同步的分支
           target_sync_branch: main 
-
-          # 使用内置的 GITHUB_TOKEN 进行认证
           target_repo_token: ${{ secrets.GITHUB_TOKEN }} 
-
-          # 如果拉取时没有新的提交，保持为 false，设为 true 会报错停止
           test_mode: false
 
       # Step 3: 输出同步结果
       - name: Sync check
         if: failure()
         run: |
-          echo "[Error] 由于未知原因导致同步失败，或者你自行修改了代码导致冲突。"
-          echo "请手动检查冲突，或者在 Actions 面板重新运行该任务。"
+          echo "[Error] 同步失败。可能是上游仓库已更名或被删除。"
           exit 1
