@@ -1,0 +1,49 @@
+name: Upstream Sync
+
+permissions:
+  contents: write
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # 每天 UTC 时间 0:00 (北京时间早上 8:00) 运行一次
+  workflow_dispatch: # 允许手动点击触发
+
+jobs:
+  sync_latest_from_upstream:
+    name: Sync latest commits from upstream repo
+    runs-on: ubuntu-latest
+    if: ${{ github.event.repository.fork }}
+
+    steps:
+      # Step 1: 检出你的仓库代码
+      - name: Checkout target repo
+        uses: actions/checkout@v3
+
+      # Step 2: 运行同步操作
+      - name: Sync upstream changes
+        id: sync
+        uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
+        with:
+          # 上游仓库地址 (格式: owner/repo)
+          # 请将这里替换为你实际需要同步的上游仓库，例如你提到的 sowa.../lxmusic-
+          upstream_sync_repo: sowahsun/lxmusic-
+          
+          # 上游仓库需要同步的分支
+          upstream_sync_branch: main 
+          
+          # 你自己仓库接收同步的分支
+          target_sync_branch: main 
+
+          # 使用内置的 GITHUB_TOKEN 进行认证
+          target_repo_token: ${{ secrets.GITHUB_TOKEN }} 
+
+          # 如果拉取时没有新的提交，保持为 false，设为 true 会报错停止
+          test_mode: false
+
+      # Step 3: 输出同步结果
+      - name: Sync check
+        if: failure()
+        run: |
+          echo "[Error] 由于未知原因导致同步失败，或者你自行修改了代码导致冲突。"
+          echo "请手动检查冲突，或者在 Actions 面板重新运行该任务。"
+          exit 1
