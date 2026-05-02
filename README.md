@@ -4,9 +4,9 @@
 
 - 更新查看：[https://github.com/guoyue2010/lxmusic-/releases](https://github.com/guoyue2010/lxmusic-/releases)
 
-- 下载链接：[https://yy.guoyue2010.jkun.cf](https://yy.guoyue2010.jkun.cf)
+- 下载链接：[https://yy.guoyue2010.com](https://yy.guoyue2010.com)
 
-- 个人博客：[https://guoyue2010.top](https://guoyue2010.top)
+- 个人博客：[https://guoyue2010.com](https://guoyue2010.com)
 
 > ----------------------------------------
 
@@ -49,21 +49,19 @@
 **价格方案**：
 - 🏆 永  久：15元
 - 📅 年  卡：4元
-- 📅 半年卡：3元
 - 📅 月  卡：2元
 - 📅 周  卡: 1.5元
 - 📅 天  卡: 0.6元
 
-**导入链接**：
+**LX导入链接**：
 - `https://source.shiqianjiang.cn/api/script/lx?key=你的卡密`
-- `https://lc.guoyue2010.top/script/lx?key=你的卡密`
-- `https://lx.xiagua.top/script/lx?key=你的卡密`
 
-### 🛒 统一购买平台
+**其他平台导入**：
+- [https://yy.guoyue2010.com/fufei.html](https://yy.guoyue2010.com/fufei.html)
+
+### 🛒 购买平台
 
 - 🌐 https://shop.guoyue2010.top
-- 🌐 https://shop.shiqianjiang.cn
-- 详细信息请见https://guoyue2010.top/blog/5007307323673153536
 
 ### ⭐ IKUN 音源
 
