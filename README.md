@@ -74,9 +74,6 @@
 
 **导入方式**
 - 发布页面是[这个](https://c.wwwweb.top) ，你把卡密怼进去就行了
-- 注意将“卡密”换成public_source或直接删掉“?key=卡密”可得公益版音源
-- http://api.ikunshare.com/script?key=卡密
-- 备用域名：music.ikun0014.top
 
 ## 赞助广告
 **🚀 超值流量卡推荐 | 全国通用流量 | 超低月租 | 即充即用**  
