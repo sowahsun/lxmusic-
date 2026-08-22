@@ -1,0 +1,217 @@
+name: Upstream Sync & JS Index Builder
+
+permissions:
+  contents: write
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # 每天北京时间 14:00 (UTC 时间 6:00) 运行一次
+  workflow_dispatch: # 允许手动点击触发
+
+jobs:
+  sync_and_index:
+    name: Sync upstream & Build JS index
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: 检出你的仓库代码
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 拉取完整 Git 历史用于获取文件提交时间
+
+      # Step 2: 配置 Git
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+
+      # Step 3: N9G9 同款强力对齐方案 (解决自动修改 README 导致的合并冲突)
+      - name: Hard Sync with Upstream
+        run: |
+          echo "🟠 备份当前工作流文件..."
+          mkdir -p ../wf_backup && cp -r .github/workflows/* ../wf_backup/ 2>/dev/null || true
+          
+          echo "🟠 强力拉取上游仓库并重置..."
+          git remote add upstream https://github.com/guoyue2010/lxmusic-.git
+          git fetch upstream main
+          git checkout main && git reset --hard upstream/main
+          
+          echo "🟠 恢复工作流文件..."
+          mkdir -p .github/workflows && cp -r ../wf_backup/* .github/workflows/ 2>/dev/null || true
+
+      # Step 4: 扫描所有 JS 文件并生成 list.json
+      - name: Scan JS files & Generate list.json
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          echo "🟠 [扫描] 正在扫描仓库中的所有 JS 音源文件..."
+          rm -f js_files_raw.txt
+
+          # 使用 git ls-files 获取所有跟踪的 .js 文件
+          while IFS= read -r -d '' filepath; do
+            if [[ "$filepath" == *.js ]] && [[ ! "$filepath" =~ ^\.github/ ]]; then
+              # 获取最后提交时间
+              committime=$(git log -1 --format=%ci -- "$filepath" 2>/dev/null || echo "")
+              # 获取文件大小（修复：使用 stat 获取真实文件大小）
+              filesize=$(stat -c%s "$filepath" 2>/dev/null || echo "0")
+              echo "$filepath|$committime|$filesize" >> js_files_raw.txt
+            fi
+          done < <(git ls-files -z)
+
+          # 转为 JSON
+          if [ -f js_files_raw.txt ]; then
+            cat js_files_raw.txt | jq -R -s -c --arg repo "$REPO" '
+              split("\n") | map(select(length > 0)) | map(split("|") | {
+                name: (.[0] | split("/") | last),
+                path: .[0],
+                version: (.[0] | split("/")[0]),
+                category: (.[0] | split("/")[1] // "根目录"),
+                time: .[1],
+                size: (.[2] | tonumber),
+                url: ("https://raw.githubusercontent.com/" + $repo + "/main/" + (.[0] | split("/") | map(gsub(" "; "%20") | gsub("\\["; "%5B") | gsub("\\]"; "%5D") | gsub("\\("; "%28") | gsub("\\)"; "%29")) | join("/")))
+              })
+            ' > list.json
+          else
+            echo "[]" > list.json
+          fi
+
+          echo "✅ list.json 生成完成，共 $(cat list.json | jq 'length') 条记录"
+          rm -f js_files_raw.txt
+
+      # Step 5: 生成美观的 README.md
+      - name: Generate README.md
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          echo "🟠 [排版] 正在生成 README.md..."
+          cat << 'PYEOF' > build_readme.py
+          import json
+          import os
+
+          REPO = os.environ.get("REPO", "sowahsun/lxmusic-")
+
+          # 读取 list.json
+          try:
+              with open("list.json", "r", encoding="utf-8") as f:
+                  items = json.load(f)
+          except Exception as e:
+              print("读取 list.json 失败:", e)
+              items = []
+
+          # 按版本和分类分组
+          groups = {}
+          # 记录每个版本的最新时间，用于排序
+          ver_max_times = {}
+          
+          for item in items:
+              ver = item.get("version", "其他")
+              cat = item.get("category", "其他")
+              t = item.get("time", "")
+              
+              # 记录该版本的最大时间
+              if ver not in ver_max_times or t > ver_max_times[ver]:
+                  ver_max_times[ver] = t
+              
+              if ver not in groups:
+                  groups[ver] = {}
+              if cat not in groups[ver]:
+                  groups[ver][cat] = []
+              groups[ver][cat].append(item)
+
+          # 分类排序权重
+          cat_order = {
+              "推荐": 0,
+              "第一批次": 1,
+              "第二批次": 2,
+              "第三批次": 3,
+              "优质-支持四平台FLAC": 4,
+              "良好-支持至少两平台FLAC": 5,
+              "一般-支持单平台FLAC或多平台320k": 6,
+              "较差-支持单平台320k或多平台128k": 7,
+              "其他": 8,
+              "未测试": 9,
+          }
+
+          def sort_cat(cat):
+              return cat_order.get(cat, 99)
+
+          # 版本排序：按最新文件时间降序
+          sorted_versions = sorted(groups.keys(), key=lambda v: ver_max_times.get(v, ""), reverse=True)
+
+          # 构建 Markdown
+          md = "# 🎵 LX Music 音源索引\n\n"
+          md += "> ⚡️ **全自动同步上游更新**，为您整理最新、最全的洛雪音乐音源。\n\n"
+          md += "## 📑 目录\n\n"
+
+          # 目录
+          for ver in sorted_versions:
+              md += f"- [{ver}](#{ver.lower()})\n"
+          md += "\n"
+
+          # 统计
+          total = len(items)
+          md += f"**当前收录音源总数：{total} 个**\n\n"
+          md += "---\n\n"
+
+          # 各版本详情
+          for ver in sorted_versions:
+              md += f"## {ver}\n\n"
+              categories = groups[ver]
+              sorted_cats = sorted(categories.keys(), key=sort_cat)
+
+              for cat in sorted_cats:
+                  cat_items = categories[cat]
+                  # 按时间降序
+                  cat_items.sort(key=lambda x: x.get("time", ""), reverse=True)
+
+                  md += f"### 📂 {cat} ({len(cat_items)} 个)\n\n"
+                  md += "| 音源名称 | 更新时间 | 大小 | 下载直链 |\n"
+                  md += "| :--- | :--- | :--- | :--- |\n"
+
+                  for item in cat_items:
+                      name = item.get("name", "Unknown")
+                      time_str = item.get("time", "")[:10]
+                      size = item.get("size", 0)
+                      # 格式化大小
+                      if size > 1048576:
+                          size_str = f"{size / 1048576:.1f} MB"
+                      elif size > 1024:
+                          size_str = f"{size / 1024:.1f} KB"
+                      else:
+                          size_str = f"{size} B"
+                      url = item.get("url", "#")
+                      md += f"| **{name}** | `{time_str}` | {size_str} | [📥 下载]({url}) |\n"
+
+                  md += "\n"
+
+              md += "---\n\n"
+
+          # 页脚
+          md += "## 🙏 声明与致谢\n\n"
+          md += "- 🚫 **免责声明**：本项目仅作技术分享，所有音源版权归原作者，严禁商业用途！\n"
+          md += "- 🔗 **数据来源**：核心数据实时同步自上游仓库 [guoyue2010/lxmusic-](https://github.com/guoyue2010/lxmusic-)。\n"
+          md += "- 📅 **最后更新**：由 GitHub Actions 自动生成。\n"
+
+          with open("README.md", "w", encoding="utf-8") as f:
+              f.write(md)
+
+          print("✅ README.md 生成完成")
+          PYEOF
+
+          python3 build_readme.py
+          rm -f build_readme.py
+
+      # Step 6: 强制提交更改 (配合重置使用 Force Push)
+      - name: Commit & Push
+        run: |
+          # 同时将恢复的 workflows 一起添加进去
+          git add .github/workflows/ list.json README.md
+          if git diff --cached --quiet; then
+            echo "✅ 没有变更，无需提交"
+          else
+            git commit -m "Auto: Update JS index & README [$(date +%Y-%m-%d)]"
+            # 因为我们在 Step 3 重置了历史，这里必须使用 --force 强制推送到你自己的仓库
+            git push origin main --force
+            echo "✅ 已提交并强制更新主分支"
+          fi
